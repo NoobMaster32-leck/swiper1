@@ -15,7 +15,7 @@ button{cursor:pointer;background:#2a2a2a}button.g{background:#1db954;color:#000;
 .btns{display:flex;justify-content:space-around;align-items:center;margin:10px 0}
 .btns button{width:64px;height:64px;border-radius:50%;font-size:26px;padding:0}
 #no{color:#ff5a5a}#yes{color:#1db954}#un,#pp{width:48px!important;height:48px!important;font-size:20px!important}
-small,.m{color:#aaa;font-size:13px}code{background:#222;padding:2px 6px;border-radius:6px;word-break:break-all}a{color:#1db954}
+details{margin:8px 0}small,.m{color:#aaa;font-size:13px}code{background:#222;padding:2px 6px;border-radius:6px;word-break:break-all}a{color:#1db954}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#333;padding:10px 16px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90%}
 </style></head><body>
 <div id="setup" class="hid">
@@ -27,9 +27,10 @@ small,.m{color:#aaa;font-size:13px}code{background:#222;padding:2px 6px;border-r
 </div>
 <div id="plsel" class="hid">
 <h1>Welche Playlist?</h1>
+<p class="m">Hier landen deine ♥-Songs.</p>
 <select id="pls"></select>
 <p class="m">oder neue Playlist anlegen:</p>
-<input id="newpl" placeholder="Name, z. B. Meine Entdeckungen">
+<input id="newpl" placeholder="Name, z. B. Meine Favoriten">
 <div class="row"><button class="g" id="plgo">Weiter</button></div>
 </div>
 <div id="main" class="hid">
@@ -38,6 +39,7 @@ small,.m{color:#aaa;font-size:13px}code{background:#222;padding:2px 6px;border-r
 <div class="chips" id="chips"></div>
 <div id="card"><img id="cover" alt=""><div id="title">Tippe auf ▶</div><div id="sub"></div><div id="bar"><div></div></div><small id="info"></small></div>
 <div class="btns"><button id="no">✕</button><button id="un">↺</button><button id="pp">▶</button><button id="yes">♥</button></div>
+<details id="srcbox"><summary class="m">Aus eigener Playlist laden</summary><select id="src"></select><div class="row"><button id="srcgo">Songs laden</button></div></details>
 <details><summary class="m">Songliste einfügen</summary><textarea id="list" rows="6" placeholder="Künstler - Titel (eine Zeile pro Song)"></textarea><div class="row"><button id="listgo">Liste übernehmen</button></div></details>
 <p class="m"><a id="open" target="_blank">In Spotify öffnen</a> · <a href="#" id="logout">Abmelden</a></p>
 </div>
@@ -55,7 +57,7 @@ function toast(t){const e=$('toast');e.textContent=t;e.style.opacity=1;clearTime
 function rand(n){const a=new Uint8Array(n);crypto.getRandomValues(a);return Array.from(a,x=>'abcdefghijklmnopqrstuvwxyz0123456789'[x%36]).join('')}
 async function challenge(v){const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return btoa(String.fromCharCode(...new Uint8Array(h))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 async function login(){const v=rand(64);localStorage.setItem('v',v);
- location.href='https://accounts.spotify.com/authorize?'+new URLSearchParams({client_id:CID,response_type:'code',redirect_uri:REDIR,code_challenge_method:'S256',code_challenge:await challenge(v),scope:'playlist-modify-private playlist-modify-public playlist-read-private'})}
+ location.href='https://accounts.spotify.com/authorize?'+new URLSearchParams({client_id:CID,response_type:'code',redirect_uri:REDIR,code_challenge_method:'S256',code_challenge:await challenge(v),scope:'playlist-modify-private playlist-modify-public playlist-read-private playlist-read-collaborative'})}
 function saveTok(j){if(!j.access_token)throw new Error(j.error_description||j.error||'Anmeldung fehlgeschlagen');tok.a=j.access_token;tok.e=Date.now()+(j.expires_in-60)*1000;if(j.refresh_token)tok.r=j.refresh_token;LS.set('tok',tok)}
 async function tokenReq(p){const r=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:CID,...p})});saveTok(await r.json())}
 async function access(){if(tok.a&&Date.now()<tok.e)return tok.a;if(!tok.r)throw new Error('Bitte neu anmelden');await tokenReq({grant_type:'refresh_token',refresh_token:tok.r});return tok.a}
@@ -68,8 +70,8 @@ function itunes(term){return new Promise(res=>{const cb='itcb'+(jn++),s=document
  s.src='https://itunes.apple.com/search?'+new URLSearchParams({term,entity:'song',limit:'5',country:'DE',callback:cb});document.body.appendChild(s)})}
 function preview(t){if(!t.pv)t.pv=itunes(t.a1+' '+t.name.replace(/\s+[-–(\[].*$/,'')).then(d=>{const r=d?.results||[],a=t.a1.toLowerCase();
  const hit=r.find(x=>x.previewUrl&&(x.artistName||'').toLowerCase().includes(a.split(' ')[0]))||r.find(x=>x.previewUrl);return hit?hit.previewUrl:null});return t.pv}
-function push(t){if(!t||seen.has(t.uri)||queue.some(x=>x.uri===t.uri))return;
- queue.push({uri:t.uri,name:t.name,artist:t.artists.map(a=>a.name).join(', '),a1:t.artists[0]?.name||'',year:(t.album?.release_date||'').slice(0,4),img:t.album?.images?.[0]?.url||'',url:t.external_urls?.spotify})}
+function push(t){if(!t||!t.uri||seen.has(t.uri)||queue.some(x=>x.uri===t.uri))return;
+ queue.push({uri:t.uri,name:t.name,artist:(t.artists||[]).map(a=>a.name).join(', '),a1:t.artists?.[0]?.name||'',year:(t.album?.release_date||'').slice(0,4),img:t.album?.images?.[0]?.url||'',url:t.external_urls?.spotify})}
 async function loadMore(){if(loading)return;loading=true;
  try{if(pending.length){for(const l of pending.splice(0,10)){try{const d=await api('/search?'+new URLSearchParams({q:l,type:'track',limit:'1',market:'DE'}));push(d.tracks?.items?.[0])}catch(e){}}}
  else if(query){for(let i=0;i<2;i++){const d=await api('/search?'+new URLSearchParams({q:query,type:'track',limit:'10',offset:String(off),market:'DE'}));off+=10;
@@ -83,14 +85,15 @@ async function render(play){
  if(queue.length<6)loadMore();queue.slice(1,4).forEach(preview);
  const pv=await preview(t);if(queue[0]!==t)return;
  if(!pv){$('info').textContent='Keine Hörprobe gefunden – über „In Spotify öffnen“ anhören';au.pause();return}
- $('info').textContent='';if(au.src!==pv)au.src=pv;if(play||unlocked)au.play().catch(()=>{});}
+ $('info').textContent=queue.length+' Songs in der Warteschlange';if(au.src!==pv)au.src=pv;if(play||unlocked)au.play().catch(()=>{});}
 function stats(){$('stats').textContent=`${added} hinzugefügt · ${seen.size} bewertet`}
 async function decide(yes){unlocked=true;const t=queue.shift();if(!t)return;seen.add(t.uri);LS.set('seen',[...seen]);hist.push({t,yes});
  if(yes)api(`/playlists/${pl.id}/items`,{method:'POST',body:JSON.stringify({uris:[t.uri]})}).then(()=>{added++;stats();toast('♥ '+t.name)}).catch(e=>toast('Fehler: '+e.message));
  stats();render(true)}
 function newQuery(q,shuffle){query=q;off=shuffle?Math.floor(Math.random()*10)*10:0;queue=[];render(true)}
 function mapQ(s){return s.replace(/\b([5-9])0er\b/gi,(m,d)=>`year:19${d}0-19${d}9`).replace(/\b20([0-2])0er\b/gi,(m,d)=>`year:20${d}0-20${d}9`)}
-async function pickPl(){view('plsel');try{const d=await api('/me/playlists?limit=50');const own=(d.items||[]).filter(p=>p&&p.owner&&p.owner.id===me.id);
+async function myPlaylists(){const d=await api('/me/playlists?limit=50');return (d.items||[]).filter(p=>p&&p.owner&&p.owner.id===me.id)}
+async function pickPl(){view('plsel');try{const own=await myPlaylists();
  $('pls').innerHTML='<option value="">– vorhandene wählen –</option>'+own.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}catch(e){toast('Fehler: '+e.message)}}
 function startMain(){view('main');$('plname').textContent=pl.name;stats();$('chips').innerHTML='';
  for(const k in CHIPS){const b=document.createElement('button');b.textContent=k;b.onclick=()=>{unlocked=true;newQuery(CHIPS[k],true)};$('chips').appendChild(b)}
@@ -110,6 +113,14 @@ $('un').onclick=async()=>{const h=hist.pop();if(!h)return toast('Nichts zum Rüc
  if(h.yes){try{await api(`/playlists/${pl.id}/items`,{method:'DELETE',body:JSON.stringify({items:[{uri:h.t.uri}]})});added--}catch(e){toast('Konnte nicht entfernen: '+e.message)}}stats();render(true)};
 $('listgo').onclick=()=>{const ls=$('list').value.split('\n').map(l=>l.replace(/^\s*\d+[.)]\s*/,'').replace(/\s+[–-]\s+/,' ').trim()).filter(Boolean);
  if(!ls.length)return toast('Liste ist leer');pending.push(...ls);$('list').value='';queue=[];unlocked=true;toast(ls.length+' Songs übernommen');render(true)};
+$('srcbox').ontoggle=async()=>{if(!$('srcbox').open)return;try{const own=(await myPlaylists()).filter(p=>!pl||p.id!==pl.id);
+ $('src').innerHTML=own.length?own.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join(''):'<option value="">Keine eigene Playlist gefunden</option>'}catch(e){toast('Fehler: '+e.message)}};
+$('srcgo').onclick=async()=>{const id=$('src').value;if(!id)return toast('Erst eine Playlist wählen');unlocked=true;toast('Lade Songs…');let all=[],o=0;
+ try{while(o<2000){const d=await api(`/playlists/${id}/items?limit=50&offset=${o}`);const it=d.items||[];
+  all.push(...it.map(x=>x.item||x.track).filter(t=>t&&t.uri&&t.uri.startsWith('spotify:track')));o+=50;if(it.length<50)break}}
+ catch(e){return toast('Fehler: '+e.message)}
+ for(let i=all.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[all[i],all[j]]=[all[j],all[i]]}
+ query=null;pending=[];queue=[];all.forEach(push);toast(queue.length+' Songs geladen');$('srcbox').open=false;render(true)};
 au.ontimeupdate=()=>{document.querySelector('#bar div').style.width=(au.duration?au.currentTime/au.duration*100:0)+'%'};
 au.onplay=()=>$('pp').textContent='❚❚';au.onpause=()=>$('pp').textContent='▶';
 let sx=null;const card=$('card');
